@@ -1,9 +1,18 @@
 cmake_minimum_required(VERSION 3.5)
 project(kiapi_infrastructure_sensor_kit_launch)
 
+
 find_package(ament_cmake_auto REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
+
+find_package(Eigen3 REQUIRED)
+find_package(Sophus REQUIRED)
+find_package(Boost REQUIRED)
+find_package(PCL REQUIRED components common)
+find_package(pcl_conversions REQUIRED)
+
+
 
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
@@ -17,32 +26,68 @@ if(BUILD_TESTING)
 endif()
 
 ## Add include directories
-include_directories(include)
+include_directories(
+  include
+  ${PCL_INCLUDE_DIRS}
+)
+
+link_libraries(
+  ${PCL_LIBRARIES}
+)
+
 
 set(node_plugins "")
 
-# Component library
+# pcl_sync_component library
 add_library(pcl_sync_component SHARED
   src/infra_node.cpp
 )
-target_compile_definitions(pcl_sync_component
+
+target_compile_definitions(pcl_sync_component 
 PRIVATE "KIAPI_INFRASTRUCTURE_SENSOR_KIT_LAUNCH_BUILDING_DLL")
 
-ament_target_dependencies(pcl_sync_component
+ament_target_dependencies(pcl_sync_component 
   rclcpp
   rclcpp_components
   sensor_msgs
 )
 
-rclcpp_components_register_nodes(pcl_sync_component "kiapi_infrastructure::PCLSyncNode")
-set(node_plugins "$(node_plugins)kiapi_infrastructure::PCLSyncNode;$<TARGET_FILE:pcl_sync_component>\n")
+rclcpp_components_register_nodes(pcl_sync_component 
+  "kiapi_infrastructure::PCLSyncNode")
 
-install(TARGETS
+  install(TARGETS
   pcl_sync_component
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
+
+# pcl_bag_component library
+add_library(pcl_bag_component SHARED
+  src/validate_bag.cpp
+)
+target_compile_definitions(pcl_bag_component
+PRIVATE "KIAPI_INFRASTRUCTURE_SENSOR_KIT_LAUNCH_BUILDING_DLL")
+
+ament_target_dependencies(pcl_bag_component
+  rclcpp
+  rclcpp_components
+  sensor_msgs
+  PCL
+  pcl_conversions
+)
+rclcpp_components_register_nodes(pcl_bag_component 
+  "kiapi_infrastructure::PCLBagNode")
+
+
+install(TARGETS
+  pcl_bag_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+set(node_plugins "$(node_plugins)kiapi_infrastructure::PCLSyncNode;$<TARGET_FILE:pcl_sync_component>\n")
+set(node_plugins "$(node_plugins)kiapi_infrastructure::PCLBagNode;$<TARGET_FILE:pcl_bag_component>\n")
 
 
 # Install Python executables

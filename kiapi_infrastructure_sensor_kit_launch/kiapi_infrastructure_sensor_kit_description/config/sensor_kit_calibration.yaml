@@ -2,7 +2,7 @@ sensor_kit_base_link:
   hesai_lidar:
     x: 1.200000
     y: 0.000000
-    z: 2.000000
+    z: 5.000000
     roll: 0.000000
     pitch: 0.000000
     yaw: 0.000000

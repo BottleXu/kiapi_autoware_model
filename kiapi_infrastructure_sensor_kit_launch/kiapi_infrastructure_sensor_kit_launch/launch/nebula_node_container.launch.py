@@ -64,7 +64,7 @@ def get_vehicle_mirror_info(context):
     return p
 
 
-def launch_setup(context, *args, **kwargs):
+def launch_setup_nebula(context, *args, **kwargs):
     def create_parameter_dict(*args):
         result = {}
         for x in args:
@@ -251,7 +251,7 @@ def launch_setup(context, *args, **kwargs):
 
     return [container]
 
-def launch_setup_2(context, *args, **kwargs):
+def launch_setup_online(context, *args, **kwargs):
     def create_parameter_dict(*args):
             result = {}
             for x in args:
@@ -415,6 +415,171 @@ def launch_setup_2(context, *args, **kwargs):
     # )
     return [container]
 
+def launch_setup_bag(context, *args, **kwargs):
+    def create_parameter_dict(*args):
+            result = {}
+            for x in args:
+                result[x] = LaunchConfiguration(x)
+            return result
+
+    # Model and make
+    sensor_model = LaunchConfiguration("sensor_model").perform(context)
+    sensor_make, sensor_extension = get_lidar_make(sensor_model)
+    nebula_decoders_share_dir = get_package_share_directory("nebula_decoders")
+
+    # Calibration file
+    sensor_calib_fp = os.path.join(
+        nebula_decoders_share_dir,
+        "calibration",
+        sensor_make.lower(),
+        sensor_model + sensor_extension,
+    )
+    assert os.path.exists(
+        sensor_calib_fp
+    ), "Sensor calib file under calibration/ was not found: {}".format(sensor_calib_fp)
+
+    # Pointcloud preprocessor parameters
+    distortion_corrector_node_param = ParameterFile(
+        param_file=LaunchConfiguration("distortion_correction_node_param_path").perform(context),
+        allow_substs=True,
+    )
+    ring_outlier_filter_node_param = ParameterFile(
+        param_file=LaunchConfiguration("ring_outlier_filter_node_param_path").perform(context),
+        allow_substs=True,
+    )
+
+    nodes = []
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_glog_component",
+            plugin="autoware::glog_component::GlogComponent",
+            name="glog_component",
+        )
+    )
+
+    config_file_path = LaunchConfiguration("config_file").perform(context)
+    config_param = ParameterFile(param_file=config_file_path, allow_substs=True)
+
+
+    nodes.append(
+        ComposableNode(
+            package="kiapi_infrastructure_sensor_kit_launch",
+            plugin="kiapi_infrastructure::PCLBagNode",
+            name="hesai_nebulr_bag",
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    cropbox_parameters = create_parameter_dict("input_frame", "output_frame")
+    cropbox_parameters["negative"] = True
+
+    vehicle_info = get_vehicle_info(context)
+    cropbox_parameters["min_x"] = vehicle_info["min_longitudinal_offset"]
+    cropbox_parameters["max_x"] = vehicle_info["max_longitudinal_offset"]
+    cropbox_parameters["min_y"] = vehicle_info["min_lateral_offset"]
+    cropbox_parameters["max_y"] = vehicle_info["max_lateral_offset"]
+    cropbox_parameters["min_z"] = vehicle_info["min_height_offset"]
+    cropbox_parameters["max_z"] = vehicle_info["max_height_offset"]
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::CropBoxFilterComponent",
+            name="crop_box_filter_self",
+            remappings=[
+                ("input", "pointcloud_raw_synced"),
+                ("output", "self_cropped/pointcloud_ex"),
+            ],
+            parameters=[cropbox_parameters],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    mirror_info = get_vehicle_mirror_info(context)
+    cropbox_parameters["min_x"] = mirror_info["min_longitudinal_offset"]
+    cropbox_parameters["max_x"] = mirror_info["max_longitudinal_offset"]
+    cropbox_parameters["min_y"] = mirror_info["min_lateral_offset"]
+    cropbox_parameters["max_y"] = mirror_info["max_lateral_offset"]
+    cropbox_parameters["min_z"] = mirror_info["min_height_offset"]
+    cropbox_parameters["max_z"] = mirror_info["max_height_offset"]
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::CropBoxFilterComponent",
+            name="crop_box_filter_mirror",
+            remappings=[
+                ("input", "self_cropped/pointcloud_ex"),
+                ("output", "mirror_cropped/pointcloud_ex"),
+            ],
+            parameters=[cropbox_parameters],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::DistortionCorrectorComponent",
+            name="distortion_corrector_node",
+            remappings=[
+                ("~/input/twist", "/sensing/vehicle_velocity_converter/twist_with_covariance"),
+                ("~/input/imu", "/sensing/imu/imu_data"),
+                ("~/input/pointcloud", "mirror_cropped/pointcloud_ex"),
+                ("~/output/pointcloud", "rectified/pointcloud_ex"),
+            ],
+            parameters=[distortion_corrector_node_param],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    # Ring Outlier Filter is the last component in the pipeline, so control the output frame here
+    if LaunchConfiguration("output_as_sensor_frame").perform(context).lower() == "true":
+        ring_outlier_output_frame = {"output_frame": LaunchConfiguration("frame_id")}
+    else:
+        ring_outlier_output_frame = {"output_frame": ""}  # keep the output frame as the input frame
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::RingOutlierFilterComponent",
+            name="ring_outlier_filter",
+            remappings=[
+                ("input", "rectified/pointcloud_ex"),
+                ("output", "pointcloud_before_sync"),
+                # ("output", "concatenated/pointcloud"),
+            ],
+            parameters=[ring_outlier_filter_node_param, ring_outlier_output_frame],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    # set container to run all required components in the same process
+    container = ComposableNodeContainer(
+        name=LaunchConfiguration("container_name"),
+        namespace="pointcloud_preprocessor_sync",
+        package="rclcpp_components",
+        executable=LaunchConfiguration("container_executable"),
+        composable_node_descriptions=nodes,
+        output="both",
+    )
+
+    # container = ComposableNodeContainer(
+    #     name=LaunchConfiguration("container_name"),
+    #     namespace="pointcloud_preprocessor",
+    #     package="rclcpp_components",
+    #     executable=LaunchConfiguration("container_executable"),
+    #     composable_node_descriptions=nodes,
+    #     output="both",
+    # )
+
+    # container = LoadComposableNodes(
+    #     composable_node_descriptions=nodes,
+    #     target_container=LaunchConfiguration("container_name"),
+    # )
+    return [container]
+
+
 def generate_launch_description():
     launch_arguments = []
 
@@ -486,11 +651,17 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("use_multithread")),
     )
 
+    # return launch.LaunchDescription(
+    #     launch_arguments
+    #     + [set_container_executable, set_container_mt_executable]
+    #     + [OpaqueFunction(function=launch_setup_nebula)]
+    #     + [OpaqueFunction(function=launch_setup_online)]
+    # )
+
     return launch.LaunchDescription(
         launch_arguments
         + [set_container_executable, set_container_mt_executable]
-        + [OpaqueFunction(function=launch_setup)]
-        + [OpaqueFunction(function=launch_setup_2)]
+        + [OpaqueFunction(function=launch_setup_bag)]
     )
 
     # return launch.LaunchDescription(
