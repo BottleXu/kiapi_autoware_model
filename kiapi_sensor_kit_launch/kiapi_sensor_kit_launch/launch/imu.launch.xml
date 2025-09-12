@@ -13,7 +13,7 @@
       </node>
     </group> -->
 
-    <arg name="imu_raw_name" default="/novatel/oem7/imu/data_raw"/>
+    <arg name="imu_raw_name" default="/novatel/oem7/imu/data"/>
     <arg name="imu_corrector_param_file" default="$(find-pkg-share individual_params)/config/$(var vehicle_id)/kiapi_sensor_kit/imu_corrector.param.yaml"/>
     <include file="$(find-pkg-share autoware_imu_corrector)/launch/imu_corrector.launch.xml">
       <arg name="input_topic" value="$(var imu_raw_name)"/>

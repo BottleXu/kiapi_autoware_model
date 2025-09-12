@@ -146,6 +146,7 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
+
     cropbox_parameters = create_parameter_dict("input_frame", "output_frame")
     cropbox_parameters["negative"] = True
 
@@ -229,6 +230,8 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
+
+
     # set container to run all required components in the same process
     container = ComposableNodeContainer(
         name=LaunchConfiguration("container_name"),
@@ -254,6 +257,237 @@ def launch_setup(context, *args, **kwargs):
     # )
 
     return [container]
+
+def launch_setup_nebular(context, *args, **kwargs):
+    def create_parameter_dict(*args):
+        result = {}
+        for x in args:
+            result[x] = LaunchConfiguration(x)
+        return result
+
+    # Model and make
+    sensor_model = LaunchConfiguration("sensor_model").perform(context)
+    sensor_make, sensor_extension = get_lidar_make(sensor_model)
+    nebula_decoders_share_dir = get_package_share_directory("nebula_decoders")
+
+    # Calibration file
+    sensor_calib_fp = os.path.join(
+        nebula_decoders_share_dir,
+        "calibration",
+        sensor_make.lower(),
+        sensor_model + sensor_extension,
+    )
+    assert os.path.exists(
+        sensor_calib_fp
+    ), "Sensor calib file under calibration/ was not found: {}".format(sensor_calib_fp)
+
+    # Pointcloud preprocessor parameters
+    distortion_corrector_node_param = ParameterFile(
+        param_file=LaunchConfiguration("distortion_correction_node_param_path").perform(context),
+        allow_substs=True,
+    )
+    ring_outlier_filter_node_param = ParameterFile(
+        param_file=LaunchConfiguration("ring_outlier_filter_node_param_path").perform(context),
+        allow_substs=True,
+    )
+
+    nodes = []
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_glog_component",
+            plugin="autoware::glog_component::GlogComponent",
+            name="glog_component",
+        )
+    )
+
+    nodes.append(
+        ComposableNode(
+            package="nebula_ros",
+            plugin=sensor_make + "RosWrapper",
+            name=sensor_make.lower() + "_ros_wrapper_node",
+            parameters=[
+                {
+                    "calibration_file": sensor_calib_fp,
+                    "sensor_model": sensor_model,
+                    "launch_hw": LaunchConfiguration("launch_driver"),
+                    **create_parameter_dict(
+                        "host_ip",
+                        "sensor_ip",
+                        "data_port",
+                        "gnss_port",
+                        "return_mode",
+                        "min_range",
+                        "max_range",
+                        "frame_id",
+                        "scan_phase",
+                        "cloud_min_angle",
+                        "cloud_max_angle",
+                        "dual_return_distance_threshold",
+                        "rotation_speed",
+                        "packet_mtu_size",
+                        "setup_sensor",
+                    ),
+                },
+            ],
+            remappings=[
+                # cSpell:ignore knzo25
+                # TODO(knzo25): fix the remapping once nebula gets updated
+                ("/sensing/lidar/velodyne_packets", "/velodyne_packets"),
+                ("velodyne_points", "pointcloud_raw_ex")
+            ],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    ####### 
+    '''
+    cropbox_parameters = create_parameter_dict("input_frame", "output_frame")
+    cropbox_parameters["negative"] = True
+
+    vehicle_info = get_vehicle_info(context)
+    cropbox_parameters["min_x"] = vehicle_info["min_longitudinal_offset"]
+    cropbox_parameters["max_x"] = vehicle_info["max_longitudinal_offset"]
+    cropbox_parameters["min_y"] = vehicle_info["min_lateral_offset"]
+    cropbox_parameters["max_y"] = vehicle_info["max_lateral_offset"]
+    cropbox_parameters["min_z"] = vehicle_info["min_height_offset"]
+    cropbox_parameters["max_z"] = vehicle_info["max_height_offset"]
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::CropBoxFilterComponent",
+            name="crop_box_filter_self",
+            remappings=[
+                ("input", "pointcloud_raw_ex"),
+                ("output", "self_cropped/pointcloud_ex"),
+            ],
+            parameters=[cropbox_parameters],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    mirror_info = get_vehicle_mirror_info(context)
+    cropbox_parameters["min_x"] = mirror_info["min_longitudinal_offset"]
+    cropbox_parameters["max_x"] = mirror_info["max_longitudinal_offset"]
+    cropbox_parameters["min_y"] = mirror_info["min_lateral_offset"]
+    cropbox_parameters["max_y"] = mirror_info["max_lateral_offset"]
+    cropbox_parameters["min_z"] = mirror_info["min_height_offset"]
+    cropbox_parameters["max_z"] = mirror_info["max_height_offset"]
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::CropBoxFilterComponent",
+            name="crop_box_filter_mirror",
+            remappings=[
+                ("input", "self_cropped/pointcloud_ex"),
+                ("output", "mirror_cropped/pointcloud_ex"),
+            ],
+            parameters=[cropbox_parameters],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::DistortionCorrectorComponent",
+            name="distortion_corrector_node",
+            remappings=[
+                ("~/input/twist", "/sensing/vehicle_velocity_converter/twist_with_covariance"),
+                ("~/input/imu", "/sensing/imu/imu_data"),
+                ("~/input/pointcloud", "mirror_cropped/pointcloud_ex"),
+                ("~/output/pointcloud", "rectified/pointcloud_ex"),
+            ],
+            parameters=[distortion_corrector_node_param],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+
+    # Ring Outlier Filter is the last component in the pipeline, so control the output frame here
+    if LaunchConfiguration("output_as_sensor_frame").perform(context).lower() == "true":
+        ring_outlier_output_frame = {"output_frame": LaunchConfiguration("frame_id")}
+    else:
+        ring_outlier_output_frame = {"output_frame": ""}  # keep the output frame as the input frame
+    nodes.append(
+        ComposableNode(
+            package="autoware_pointcloud_preprocessor",
+            plugin="autoware::pointcloud_preprocessor::RingOutlierFilterComponent",
+            name="ring_outlier_filter",
+            remappings=[
+                ("input", "rectified/pointcloud_ex"),
+                ("output", "pointcloud_before_sync"),
+                # ("output", "concatenated/pointcloud"),
+            ],
+            parameters=[ring_outlier_filter_node_param, ring_outlier_output_frame],
+            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+        )
+    )
+    '''
+    ########
+
+
+    # set container to run all required components in the same process
+    container = ComposableNodeContainer(
+        name=LaunchConfiguration("container_name"),
+        namespace="pointcloud_preprocessor",
+        package="rclcpp_components",
+        executable=LaunchConfiguration("container_executable"),
+        composable_node_descriptions=nodes,
+        output="both",
+    )
+
+    # container = ComposableNodeContainer(
+    #     name=LaunchConfiguration("container_name"),
+    #     namespace="pointcloud_preprocessor",
+    #     package="rclcpp_components",
+    #     executable=LaunchConfiguration("container_executable"),
+    #     composable_node_descriptions=nodes,
+    #     output="both",
+    # )
+
+    # container = LoadComposableNodes(
+    #     composable_node_descriptions=nodes,
+    #     target_container=LaunchConfiguration("container_name"),
+    # )
+
+    return [container]
+
+
+
+def launch_setup_bypass(context, *args, **kwargs):
+
+    # set bypass as a component
+    bypass_component = ComposableNode(
+        package="kiapi_sensor_kit_launch",
+        plugin="kiapi_sensor::PCLBypassNode",
+        name="kiapi_bypass_sync")
+
+
+    
+
+    concat_loader = LoadComposableNodes(
+        composable_node_descriptions=[bypass_component],
+        target_container=LaunchConfiguration("pointcloud_container_name"),
+    )
+
+
+
+    # container = ComposableNodeContainer(
+    #     name=LaunchConfiguration("container_name"),
+    #     namespace="pointcloud_preprocessor",
+    #     package="rclcpp_components",
+    #     executable=LaunchConfiguration("container_executable"),
+    #     composable_node_descriptions=nodes,
+    #     output="both",
+    # )
+
+    # container = LoadComposableNodes(
+    #     composable_node_descriptions=nodes,
+    #     target_container=LaunchConfiguration("container_name"),
+    # )
+    return [concat_loader]
 
 
 def generate_launch_description():
@@ -327,6 +561,7 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("use_multithread")),
     )
 
+    
     return launch.LaunchDescription(
         launch_arguments
         + [set_container_executable, set_container_mt_executable]
@@ -334,9 +569,8 @@ def generate_launch_description():
     )
 
     # return launch.LaunchDescription(
-    # launch_arguments
-    # + [ResetLaunchConfigurations(['ros_namespace'])]
-    # + [PushRosNamespace('')]
-    # + [set_container_executable, set_container_mt_executable]
-    # + [OpaqueFunction(function=launch_setup)]
+    #     launch_arguments
+    #     + [set_container_executable, set_container_mt_executable]
+    #     + [OpaqueFunction(function=launch_setup_nebular)]
+    #     + [OpaqueFunction(function=launch_setup_bypass)]
     # )
