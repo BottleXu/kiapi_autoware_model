@@ -651,18 +651,18 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("use_multithread")),
     )
 
-    # return launch.LaunchDescription(
-    #     launch_arguments
-    #     + [set_container_executable, set_container_mt_executable]
-    #     + [OpaqueFunction(function=launch_setup_nebula)]
-    #     + [OpaqueFunction(function=launch_setup_online)]
-    # )
-
     return launch.LaunchDescription(
         launch_arguments
         + [set_container_executable, set_container_mt_executable]
-        + [OpaqueFunction(function=launch_setup_bag)]
+        + [OpaqueFunction(function=launch_setup_nebula)]
+        + [OpaqueFunction(function=launch_setup_online)]
     )
+
+    # return launch.LaunchDescription(
+    #     launch_arguments
+    #     + [set_container_executable, set_container_mt_executable]
+    #     + [OpaqueFunction(function=launch_setup_bag)]
+    # )
 
     # return launch.LaunchDescription(
     # launch_arguments
