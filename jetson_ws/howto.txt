@@ -1,0 +1,9 @@
+1. package build
+cd jetson_ws
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+2. update
+source install/setup.bash
+
+3. run
+ros2 launch autoware_jetson_launch logging_simulator_wo_vision_pc.launch.xml map_path:=/root/autoware_resource/map/kiapi_250410 vehicle_model:=kiapi_infrastructure sensor_model:=kiapi_infrastructure_sensor_kit
