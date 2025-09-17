@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+      rate: 50                   # Hz
+      imu:
+        frame: "imu_link"
+        heading_yaw: 0.0         # radians
+      gnss:
+        frame: "gps"
+        latitude:   35.648518
+        longitude: 128.399235
+        altitude: 48.80729184858501
+      direct_tf:
+        translation_x: -101.013
+        translation_y: 91.484
+        translation_z: 47.574
+        rotation_x: -0.002
+        rotation_y: -0.013
+        rotation_z: 0.916
+        rotation_w: 0.400
