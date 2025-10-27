@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="autoware_map_based_prediction" exec="map_based_prediction" name="map_based_prediction" output="both" respawn="true">
+    <param from="$(find-pkg-share autoware_map_based_prediction)/config/map_based_prediction.param.yaml" allow_substs="true"/>
+    <remap from="/vector_map" to="/map/vector_map"/>
+    <remap from="~/input/objects" to="/perception/object_recognition/tracking/objects"/>
+    <remap from="~/output/objects" to="/perception/object_recognition/prediction/objects"/>
+  </node>
+</launch>

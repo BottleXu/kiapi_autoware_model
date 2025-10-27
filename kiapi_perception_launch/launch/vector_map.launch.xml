@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Parameter files -->
+
+  <arg name="map_projector_info_path" description="Path to the yaml file" default="$(env HOME)/autoware_resource/map/kiapi_250410/map_projector_info.yaml"/>
+  <arg name="lanelet2_map_path" description="Path to the lanelet2 map file" default="$(env HOME)/autoware_resource/map/kiapi_250410/lanelet2_map.osm"/>
+  <arg name="pointcloud_map_path" default="$(env HOME)/autoware_resource/map/kiapi_250410/pointcloud_map.pcd"/>
+  <arg name="pointcloud_map_metadata_path" default="$(env HOME)/autoware_resource/map/kiapi_250410/pointcloud_map.pcd"/>
+  
+  <arg name="lanelet2_map_loader_param_path" default="$(find-pkg-share autoware_map_loader)/config/lanelet2_map_loader.param.yaml"/>
+  <arg name="map_projection_loader_param_path" default="$(find-pkg-share autoware_map_loader)/config/map_projection_loader.param.yaml"/>
+  <arg name="pointcloud_map_loader_param_path" default="$(find-pkg-share autoware_map_loader)/config/pointcloud_map_loader.param.yaml"/>
+
+  <node pkg="autoware_map_loader" exec="autoware_lanelet2_map_loader" name="lanelet2_map_loader">
+    <param from="$(var lanelet2_map_loader_param_path)" allow_substs="true"/>
+  </node>
+
+  <node pkg="autoware_map_projection_loader" exec="autoware_map_projection_loader_node" output="both">
+      <param from="$(var map_projection_loader_param_path)" allow_substs="true"/>
+  </node>
+
+  <node pkg="autoware_lanelet2_map_visualizer" exec="autoware_lanelet2_map_visualizer" name="lanelet2_map_visualization" output="both">
+    <remap from="input/lanelet2_map" to="map/vector_map"/>
+    <remap from="output/lanelet2_map_marker" to="map/vector_map_marker"/>
+  </node>
+
+  <node pkg="kiapi_sensor_kit_launch" exec="utm_to_lla" name="utm_to_lla_direct_tf" output="both" />
+
+</launch>

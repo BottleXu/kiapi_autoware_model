@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="use_sim_time" default="true" />
+  <arg name="input/pointcloud" default="/sensing/lidar/pointcloud"/>
+  <arg name="output/objects" default="/perception/centerpoint/objects"/>
+  <arg name="data_path" default="$(env HOME)/autoware_data" description="packages data and artifacts directory path"/>
+  <arg name="node_name" default="lidar_centerpoint" description="node name for autoware_lidar_centerpoint_node"/>
+  <arg name="model_name" default="centerpoint" description="options: `centerpoint`, `centerpoint_tiny` or `centerpoint_short_range`"/>
+  <arg name="model_path" default="$(var data_path)/$(var node_name)"/>
+  <arg name="model_param_path" default="$(find-pkg-share autoware_lidar_centerpoint)/config/$(var model_name).param.yaml"/>
+  <arg name="ml_package_param_path" default="$(var model_path)/$(var model_name)_ml_package.param.yaml"/>
+  <arg name="class_remapper_param_path" default="$(var model_path)/detection_class_remapper.param.yaml"/>
+  <arg name="common_param_path" default="$(find-pkg-share autoware_lidar_centerpoint)/config/centerpoint_common.param.yaml"/>
+  <arg name="build_only" default="false" description="shutdown node after TensorRT engine file is built"/>
+
+  <!-- 1. LiDAR Preprocessing -->
+  <arg name="config_file" default="$(find-pkg-share nebula_ros)/config/lidar/velodyne/VLS128.param.yaml"/>
+  <node pkg="nebula_ros" exec="velodyne_ros_wrapper_node" name="velodyne_ros_wrapper_node" output="screen">
+    <param from="$(var config_file)" allow_substs="true"/>
+    <param name="launch_hw" value="false"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="/velodyne_points" to="/nebula/velodyne_points"/>
+  </node>
+
+  <node pkg="kiapi_perception_launch" exec="pcl_bypass_node" name="pcl_bypass_node" output="screen" />
+
+  <!-- 2. LiDAR DNN Model based detectors -->
+  <node pkg="autoware_lidar_centerpoint" exec="autoware_lidar_centerpoint_node" name="$(var node_name)" output="screen">
+    <remap from="~/input/pointcloud" to="$(var input/pointcloud)"/>
+    <remap from="~/input/pointcloud/cuda" to="/perception/centerpoint/objects"/>
+    <remap from="~/output/objects" to="$(var output/objects)"/>
+    <param from="$(var model_param_path)" allow_substs="true"/>
+    <param from="$(var ml_package_param_path)" allow_substs="true"/>
+    <param from="$(var class_remapper_param_path)"/>
+    <param from="$(var common_param_path)"/>
+
+    <!-- This parameter shall NOT be included in param file. See also: https://github.com/autowarefoundation/autoware_universe/pull/6167 -->
+    <param name="build_only" value="$(var build_only)"/>
+    <param name="logger_name" value="$(var node_name)"/>
+  </node>
+
+  <!-- 3. Lidar rule-based detectors: object_recognition-->
+  <!-- 3.1 ground_segmentation -->
+  <node pkg="autoware_ground_segmentation" exec="scan_ground_filter_node" name="scan_ground_filter_node" output="screen">
+    <remap from="input" to="$(var input/pointcloud)"/>
+    <remap from="output" to="/perception/obstacle_segmentation/pointcloud"/>
+    <param from="$(find-pkg-share autoware_ground_segmentation)/config/scan_ground_filter.param.yaml"/>
+    <param from="$(find-pkg-share autoware_vehicle_info_utils)/config/vehicle_info.param.yaml"/>
+  </node>
+
+
+
+  <!-- 3.2 voxel_grid_based_euclidean_cluster -->
+  <include file="$(find-pkg-share autoware_euclidean_cluster)/launch/voxel_grid_based_euclidean_cluster.launch.py">
+    <arg name="input_pointcloud" value="/perception/obstacle_segmentation/pointcloud"/>
+    <arg name="input_map" value="/map/pointcloud_map"/>
+    <arg name="output_clusters" value="/perception/obstacle_clusters"/>
+    <arg name="use_low_height_cropbox" value="false"/>
+    <arg name="voxel_grid_based_euclidean_param_path" value="$(find-pkg-share autoware_euclidean_cluster)/config/voxel_grid_based_euclidean_cluster.param.yaml"/>
+  </include>
+
+  <!-- 3.3 shape estimation -->
+  <node pkg="autoware_shape_estimation" exec="shape_estimation_node" name="segmentation_shape_estimation_node" output="screen">
+    <remap from="input" to="/perception/obstacle_clusters"/>
+    <remap from="objects" to="/perception/obstacle_clusters/shape_estimated_objects"/>
+    <param name="model_path" value="$(env HOME)/autoware_data/shape_estimation/pointnet.onnx"/>
+    <param from="$(find-pkg-share autoware_shape_estimation)/config/shape_estimation.param.yaml" allow_substs="true"/>
+    <param name="use_vehicle_reference_yaw" value="true"/>
+    <param name="use_vehicle_reference_shape_size" value="false"/>
+  </node>
+  <!-- 3.4 autoware_detected_object_feature_remover -->
+  <node pkg="autoware_detected_object_feature_remover" exec="detected_object_feature_remover_node" name="segmentation_detected_object_feature_remover_node" output="screen">
+    <remap from="~/input" to="/perception/obstacle_clusters/shape_estimated_objects"/>
+    <remap from="~/output" to="/perception/obstacle_segmentation/objects/feature_removed"/>
+  </node>
+
+  <!-- 3.5  detection_by_tracker -->
+  <node pkg="autoware_detection_by_tracker" exec="detection_by_tracker_node" name="detection_by_tracker_node" output="screen">
+    <remap from="~/input/tracked_objects" to="/perception/object_recognition/tracking/objects"/>
+    <remap from="~/input/initial_objects" to="/perception/obstacle_segmentation/objects/feature_removed"/>
+    <remap from="~/output" to="/perception/obstacle_segmentation/objects"/>
+    <param from="$(find-pkg-share autoware_detection_by_tracker)/config/detection_by_tracker.param.yaml"/>
+  </node>
+
+  
+
+  <!-- 4. multi_object_tracker  -->
+  <include file="$(find-pkg-share autoware_multi_object_tracker)/launch/multi_object_tracker.launch.xml">
+    <arg name="input/detection01/objects" value="/perception/centerpoint/objects"/>
+    <arg name="input/detection01/channel" value="lidar_centerpoint"/>
+    <arg name="input/detection02/objects" value="/perception/obstacle_segmentation/objects"/>
+    <arg name="input/detection02/channel" value="lidar_clustering"/>
+    <arg name="output/objects" value="/perception/object_recognition/tracking/objects"/>
+    <arg name="data_association_matrix_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/data_association_matrix.param.yaml"/>
+    <arg name="input_channels_path"  value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
+    <arg name="tracker_setting_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
+  </include>
+
+  <!-- 5. occupancy_grid_map -->
+  <include file="$(find-pkg-share autoware_probabilistic_occupancy_grid_map)/launch/pointcloud_based_occupancy_grid_map.launch.py">
+    <arg name="input/obstacle_pointcloud" value="/perception/obstacle_segmentation/pointcloud"/>
+    <arg name="input/raw_pointcloud" value="/sensing/lidar/pointcloud"/>
+    <arg name="output" value="/perception/occupancy_grid_map/map"/>
+    <arg name="use_intra_process" value="true"/>
+    <arg name="use_multithread" value="true"/>
+    <arg name="use_pointcloud_container" value="false"/>
+    <arg name="param_file" value="$(find-pkg-share autoware_probabilistic_occupancy_grid_map)/config/pointcloud_based_occupancy_grid_map.param.yaml"/>
+    <arg name="updater_type" value="binary_bayes_filter"/>
+    <arg name="updater_param_file" value="$(find-pkg-share autoware_probabilistic_occupancy_grid_map)/config/binary_bayes_filter_updater.param.yaml"/>
+  </include>
+
+  <!-- 6. Prediction -->
+  <!-- <node pkg="autoware_simpl_prediction" exec="autoware_simpl_prediction_exe" output="screen">
+    <param name="data_path" value="$(env HOME)/autoware_data/simpl_prediction"/>
+    <param name="param_path" value="$(find-pkg-share autoware_simpl_prediction)/config/simpl.param.yaml"/>
+    <remap from="~/input/objects" to="/perception/object_recognition/tracking/objects"/>
+    <remap from="~/input/vector_map" to="/map/vector_map"/>
+    <remap from="~/output/objects" to="/perception/object_recognition/prediction/objects"/>
+  </node> -->
+
+  <!-- <node pkg="autoware_map_based_prediction" exec="map_based_prediction" name="map_based_prediction" output="both">
+    <param from="$(find-pkg-share autoware_map_based_prediction)/config/map_based_prediction.param.yaml" allow_substs="true"/>
+    <remap from="/vector_map" to="/map/vector_map"/>
+    <remap from="~/input/objects" to="/perception/object_recognition/tracking/objects"/>
+    <remap from="~/output/objects" to="/perception/object_recognition/prediction/objects"/>
+  </node> -->
+
+</launch>
