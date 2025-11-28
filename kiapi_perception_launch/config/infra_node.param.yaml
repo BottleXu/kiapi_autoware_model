@@ -1,17 +1,12 @@
 /**:
   ros__parameters:
-      rate: 50                   # Hz
-      imu:
-        heading_yaw: 0.0         # radians
-      gnss:
-        latitude:   35.648518
-        longitude: 128.399235
-        altitude: 48.80729184858501
-      # direct_tf:
-      #   translation_x: -101.013
-      #   translation_y: 91.484
-      #   translation_z: 47.574
-      #   rotation_x: -0.002
-      #   rotation_y: -0.013
-      #   rotation_z: 0.916
-      #   rotation_w: 0.400
+    rate: 50
+    pole:
+      latitude:   35.648474
+      longitude:  128.399303
+      altitude:   46.6
+    lidar:
+      px:           0.0 #[m]
+      py:           0.0 #[m]
+      pz:           4.0 #[m]
+      heading_yaw:  132.7125 #[degrees]

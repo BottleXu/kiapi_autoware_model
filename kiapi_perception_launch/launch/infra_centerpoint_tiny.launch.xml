@@ -16,10 +16,16 @@
   <!-- 1. Init Set -->
   <!-- 1.1 PointField Conversion -->
   <node pkg="kiapi_perception_launch" exec="pointcloud_xyzirt_bypass_node" name="pointcloud_xyzirt_bypass_node" output="screen" />
-  
-  <!-- 1.2 Static TF -->
-  <node pkg="tf2_ros" exec="static_transform_publisher" name="map_base" args="-101.013 91.484 47.574 -0.002 -0.013 0.916 0.400 map base_link" />
+  <!-- <node pkg="kiapi_perception_launch" exec="pointcloud_xyzitr_bypass_node" name="pointcloud_xyzitr_bypass_node" output="screen" />  -->
 
+  <!-- 1.2 Static TF -->
+  <node pkg="kiapi_perception_launch" exec="infra_static_tf_node" name="kiapi_infra_static_tf_node" output="screen" >
+    <param name="yaml_path" value="$(find-pkg-share kiapi_perception_launch)/config/infra_node.param.yaml"/>
+    <param name="use_vector_map" value="true"/>
+    <param name="map_projector_info_path" value="$(env HOME)/autoware_resource/map/kiapi_251107/map_projector_info.yaml"/>
+  </node>
+
+  
   <!-- 2. LiDAR DNN Model based detectors -->
   <node pkg="autoware_lidar_centerpoint" exec="autoware_lidar_centerpoint_node" name="$(var node_name)" output="screen">
     <remap from="~/input/pointcloud" to="$(var input/pointcloud)"/>

@@ -2,8 +2,8 @@
 <launch>
   <node pkg="kiapi_perception_launch" exec="infra_static_tf_node" name="kiapi_infra_static_tf_node" output="screen" >
     <param name="yaml_path" value="$(find-pkg-share kiapi_perception_launch)/config/infra_node.param.yaml"/>
-    <param name="use_vector_map" value="True"/>
-    <param name="map_projector_info_path" value="$(env HOME)/autoware_resource/map/kiapi_250410/map_projector_info.yaml"/>
+    <param name="use_vector_map" value="true"/>
+    <param name="map_projector_info_path" value="$(env HOME)/autoware_resource/map/kiapi_251107/map_projector_info.yaml"/>
   </node>
 </launch>
   

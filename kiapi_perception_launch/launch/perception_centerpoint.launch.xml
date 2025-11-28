@@ -13,17 +13,19 @@
   <arg name="common_param_path" default="$(find-pkg-share autoware_lidar_centerpoint)/config/centerpoint_common.param.yaml"/>
   <arg name="build_only" default="false" description="shutdown node after TensorRT engine file is built"/>
 
+  <set_parameter name="use_sim_time" value="true" />
+
   <!-- 1. LiDAR Preprocessing -->
-  <arg name="config_file" default="$(find-pkg-share nebula_ros)/config/lidar/velodyne/VLS128.param.yaml"/>
+  <!-- <arg name="config_file" default="$(find-pkg-share nebula_ros)/config/lidar/velodyne/VLS128.param.yaml"/>
   <node pkg="nebula_ros" exec="velodyne_ros_wrapper_node" name="velodyne_ros_wrapper_node" output="screen">
     <param from="$(var config_file)" allow_substs="true"/>
     <param name="launch_hw" value="false"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <remap from="/velodyne_points" to="/nebula/velodyne_points"/>
-  </node>
+  </node> -->
 
-  <node pkg="kiapi_perception_launch" exec="pcl_bypass_node" name="pcl_bypass_node" output="screen" />
-
+  <node pkg="kiapi_perception_launch" exec="pcl_bypass_node" name="pcl_bypass_node" output="screen" /> 
+  
   <!-- 2. LiDAR DNN Model based detectors -->
   <node pkg="autoware_lidar_centerpoint" exec="autoware_lidar_centerpoint_node" name="$(var node_name)" output="screen">
     <remap from="~/input/pointcloud" to="$(var input/pointcloud)"/>

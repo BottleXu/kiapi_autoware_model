@@ -71,6 +71,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# pointcloud_xyzirt_bypass_node
 add_executable(pointcloud_xyzirt_bypass_node 
   src/pointcloud_xyzirt_bypass_node.cpp)
 
@@ -82,6 +83,19 @@ ament_target_dependencies(pointcloud_xyzirt_bypass_node
   pcl_conversions
 )
 
+# pointcloud_xyzitr_bypass_node
+add_executable(pointcloud_xyzitr_bypass_node 
+  src/pointcloud_xyzitr_bypass_node.cpp)
+
+ament_target_dependencies(pointcloud_xyzitr_bypass_node
+  rclcpp
+  rclcpp_components
+  sensor_msgs
+  PCL
+  pcl_conversions
+)
+
+# infra_static_tf_node
 add_executable(infra_static_tf_node 
   src/infra_static_tf_node.cpp)
 
@@ -102,6 +116,7 @@ target_link_libraries(infra_static_tf_node
 
 install(TARGETS 
   pointcloud_xyzirt_bypass_node
+  pointcloud_xyzitr_bypass_node
   infra_static_tf_node 
   DESTINATION lib/${PROJECT_NAME}
 )

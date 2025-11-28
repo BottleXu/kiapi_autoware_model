@@ -1,12 +1,12 @@
-#include "pointcloud_bypass_node.hpp"
+#include "pointcloud_xyzitr_bypass_node.hpp"
 
 using namespace std::chrono_literals;
 
 
-PCLBypassNode::PCLBypassNode(const rclcpp::NodeOptions & options)
+PCLConvertXYZITRNode::PCLConvertXYZITRNode(const rclcpp::NodeOptions & options)
 : Node("kiapi_bypass", options)
 {
-  RCLCPP_INFO(this->get_logger(), "PointCloud Sync Node Initialized");
+  RCLCPP_INFO(this->get_logger(), "PointField XYZITR Convert Node Initialized");
 
   rclcpp::PublisherOptions pub_options;
   pub_options.qos_overriding_options = rclcpp::QosOverridingOptions::with_default_policies();
@@ -18,16 +18,10 @@ PCLBypassNode::PCLBypassNode(const rclcpp::NodeOptions & options)
     pub_options);
 
   // Subscribers
-  // subscription_ =  this->create_subscription<sensor_msgs::msg::PointCloud2>(
-  //   "/nebula/velodyne_points", 
-  //   rclcpp::SensorDataQoS().keep_last(maximum_queue_size_),
-  //   std::bind(&PCLBypassNode::convert_point_xyzirc, this, std::placeholders::_1));
-  
   subscription_ =  this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    "/sensing/lidar/concatenated/pointcloud", 
+    "/hesai/pandar", 
     rclcpp::SensorDataQoS().keep_last(maximum_queue_size_),
-    std::bind(&PCLBypassNode::convert_point_xyzirc, this, std::placeholders::_1));
-  
+    std::bind(&PCLConvertXYZITRNode::convert_point_xyzitr, this, std::placeholders::_1));
   
 }
 
@@ -35,7 +29,7 @@ PCLBypassNode::PCLBypassNode(const rclcpp::NodeOptions & options)
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<PCLBypassNode>());
+  rclcpp::spin(std::make_shared<PCLConvertXYZITRNode>());
   rclcpp::shutdown();
   return 0;
 }
