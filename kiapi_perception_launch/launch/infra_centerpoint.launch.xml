@@ -12,7 +12,8 @@
   <arg name="class_remapper_param_path" default="$(var model_path)/detection_class_remapper.param.yaml"/>
   <arg name="common_param_path" default="$(find-pkg-share autoware_lidar_centerpoint)/config/centerpoint_common.param.yaml"/>
   <arg name="build_only" default="false" description="shutdown node after TensorRT engine file is built"/>
-
+  <arg name="use_vector_map" default="true"/>
+  
   <!-- 1. Init Set -->
   <!-- 1.1 PointField Conversion -->
   <node pkg="kiapi_perception_launch" exec="pointcloud_xyzirt_bypass_node" name="pointcloud_xyzirt_bypass_node" output="screen" />
@@ -24,6 +25,10 @@
     <param name="map_projector_info_path" value="$(env HOME)/autoware_resource/map/kiapi_251107/map_projector_info.yaml"/>
   </node>
 
+  <!-- 1.3 Vector Map -->
+  <group if="$(var use_vector_map)">
+    <include file="$(find-pkg-share kiapi_perception_launch)/launch/vector_map.launch.xml" />
+  </group>
   
   <!-- 2. LiDAR DNN Model based detectors -->
   <node pkg="autoware_lidar_centerpoint" exec="autoware_lidar_centerpoint_node" name="$(var node_name)" output="screen">
@@ -89,7 +94,7 @@
     <arg name="input/detection01/channel" value="lidar_centerpoint"/>
     <arg name="input/detection02/objects" value="/perception/obstacle_segmentation/objects"/>
     <arg name="input/detection02/channel" value="lidar_clustering"/>
-    <arg name="output/objects" value="/perception/object_recognition/tracking/objects"/>
+    <arg name="output/objects" value="/perception/object_recognition/tracking/objects/raw"/>
     <arg name="data_association_matrix_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/data_association_matrix.param.yaml"/>
     <arg name="input_channels_path"  value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
     <arg name="tracker_setting_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
@@ -107,4 +112,8 @@
     <arg name="updater_type" value="binary_bayes_filter"/>
     <arg name="updater_param_file" value="$(find-pkg-share autoware_probabilistic_occupancy_grid_map)/config/binary_bayes_filter_updater.param.yaml"/>
   </include>
+
+  <!-- 6. Pose to UTM -->
+  <node pkg="kiapi_perception_launch" exec="utm_tracker" name="utm_tracker" output="screen" />
+  
 </launch>

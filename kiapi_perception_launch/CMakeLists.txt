@@ -9,10 +9,12 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(autoware_map_msgs REQUIRED)
+find_package(autoware_perception_msgs REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 find_package(Sophus REQUIRED)
@@ -114,10 +116,28 @@ target_link_libraries(infra_static_tf_node
   yaml-cpp
 )
 
+# pose converter
+add_executable(utm_tracker 
+  src/utm_tracker.cpp)
+
+ament_target_dependencies(utm_tracker
+  rclcpp
+  rclcpp_components
+  nav_msgs
+  geographic_msgs
+  rclcpp
+  tf2
+  tf2_ros
+  autoware_map_msgs
+  autoware_perception_msgs
+)
+
+# cpp install
 install(TARGETS 
   pointcloud_xyzirt_bypass_node
   pointcloud_xyzitr_bypass_node
   infra_static_tf_node 
+  utm_tracker
   DESTINATION lib/${PROJECT_NAME}
 )
 

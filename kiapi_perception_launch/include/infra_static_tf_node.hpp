@@ -337,9 +337,9 @@ void InfraStaticTFNode::MapInitSet(){
     pole_tf.transform.translation.z *= -1;
   }
 
-  // RCLCPP_INFO(this->get_logger(), "pole_tf: x: %f", pole_tf.transform.translation.x);
-  // RCLCPP_INFO(this->get_logger(), "pole_tf: y: %f", pole_tf.transform.translation.y);
-  // RCLCPP_INFO(this->get_logger(), "pole_tf: z: %f", pole_tf.transform.translation.z);
+  RCLCPP_INFO(this->get_logger(), "pole_tf: x: %f", pole_origin_utm.px);
+  RCLCPP_INFO(this->get_logger(), "pole_tf: y: %f", pole_origin_utm.py);
+  RCLCPP_INFO(this->get_logger(), "pole_tf: z: %f", pole_origin_utm.pz);
 
   pole_tf.transform.rotation.x = 0;
   pole_tf.transform.rotation.y = 0;

@@ -29,7 +29,7 @@ struct EIGEN_ALIGN16 PointXYZIRC
   PCL_ADD_POINT4D;
   uint8_t intensity;             
   uint8_t return_type;         
-  uint8_t channel;         
+  uint16_t channel;         
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 POINT_CLOUD_REGISTER_POINT_STRUCT(PointXYZIRC,
@@ -38,10 +38,8 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(PointXYZIRC,
   (float, z, z)
   (std::uint8_t, intensity, intensity)
   (std::uint8_t, return_type, return_type)
-  (std::uint16_t, channel, channel))
-
-
-
+  (std::uint16_t, channel, channel)
+)
 
 class PCLConvertXYZITRNode : public rclcpp::Node
 {
@@ -80,7 +78,7 @@ private:
 
 void PCLConvertXYZITRNode::convert_point_xyzitr(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 { 
-  // RCLCPP_INFO(this->get_logger(), "PointField Callback");
+  RCLCPP_INFO_ONCE(this->get_logger(), "PointField Callback");
 
   const size_t point_count = msg->width * msg->height;
 
@@ -146,8 +144,8 @@ void PCLConvertXYZITRNode::convert_point_xyzitr(const sensor_msgs::msg::PointClo
   sensor_msgs::PointCloud2ConstIterator<float> iter_y(*msg, "y");
   sensor_msgs::PointCloud2ConstIterator<float> iter_z(*msg, "z");
   sensor_msgs::PointCloud2ConstIterator<float> iter_intensity(*msg, "intensity");
-  sensor_msgs::PointCloud2ConstIterator<double> iter_timestamp(*msg, "timestamp");
-  sensor_msgs::PointCloud2ConstIterator<uint32_t> iter_ring(*msg, "ring");
+  // sensor_msgs::PointCloud2ConstIterator<double> iter_timestamp(*msg, "timestamp");
+  sensor_msgs::PointCloud2ConstIterator<uint16_t> iter_ring(*msg, "ring");
 
   
   for (size_t i = 0; i < point_count;
@@ -170,7 +168,7 @@ void PCLConvertXYZITRNode::convert_point_xyzitr(const sensor_msgs::msg::PointClo
   output.header.stamp = this->get_clock()->now();
 
   publisher_->publish(output);
-  // RCLCPP_INFO_ONCE(this->get_logger(), "PointField Convert Published");
+  RCLCPP_INFO_ONCE(this->get_logger(), "PointField Convert Published");
 }
   
 

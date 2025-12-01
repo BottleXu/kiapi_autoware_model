@@ -4,6 +4,7 @@
   <arg name="input/pointcloud" default="/sensing/lidar/pointcloud"/>
   <arg name="output/objects" default="/perception/apollo/objects"/>
   <arg name="config_file" default="$(find-pkg-share nebula_ros)/config/lidar/velodyne/VLS128.param.yaml"/>
+  <arg name="use_vector_map" default="true"/>
   
 
   <!-- 1. Init Set -->
@@ -15,10 +16,14 @@
   <!-- 1.2 Static TF -->
   <node pkg="kiapi_perception_launch" exec="infra_static_tf_node" name="kiapi_infra_static_tf_node" output="screen" >
     <param name="yaml_path" value="$(find-pkg-share kiapi_perception_launch)/config/infra_node.param.yaml"/>
-    <param name="use_vector_map" value="false"/>
+    <param name="use_vector_map" value="$(var use_vector_map)"/>
     <param name="map_projector_info_path" value="$(env HOME)/autoware_resource/map/kiapi_251107/map_projector_info.yaml"/>
   </node>
 
+  <!-- 1.3 Vector Map -->
+  <group if="$(var use_vector_map)">
+    <include file="$(find-pkg-share kiapi_perception_launch)/launch/vector_map.launch.xml" />
+  </group>
 
   <!-- 2. LiDAR DNN Model based detectors -->
   <!-- 2.1 Apollo instance segmentation -->
@@ -101,7 +106,7 @@
     <arg name="input/detection01/channel" value="lidar_apollo"/>
     <arg name="input/detection02/objects" value="/perception/obstacle_segmentation/objects"/>
     <arg name="input/detection02/channel" value="lidar_clustering"/>
-    <arg name="output/objects" value="/perception/object_recognition/tracking/objects"/>
+    <arg name="output/objects" value="/perception/object_recognition/tracking/objects/raw"/>
     <arg name="data_association_matrix_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/data_association_matrix.param.yaml"/>
     <arg name="input_channels_path"  value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
     <arg name="tracker_setting_path" value="$(find-pkg-share autoware_multi_object_tracker)/config/multi_object_tracker_node.param.yaml"/>
@@ -119,5 +124,9 @@
     <arg name="updater_type" value="binary_bayes_filter"/>
     <arg name="updater_param_file" value="$(find-pkg-share autoware_probabilistic_occupancy_grid_map)/config/binary_bayes_filter_updater.param.yaml"/>
   </include>
+
+  <!-- 6. Pose to UTM -->
+  <node pkg="kiapi_perception_launch" exec="utm_tracker" name="utm_tracker" output="screen" />
+
   
 </launch>
