@@ -81,7 +81,7 @@ void UTMTracker::LookupTransform(){
     // and send velocity commands for turtle2 to reach target_frame
     try {
         world_tf = tf_buffer_->lookupTransform(
-        "world", "base_link",
+        "world", "map",
         tf2::TimePointZero);
     } catch (const tf2::TransformException & ex) {
         RCLCPP_INFO_ONCE(
